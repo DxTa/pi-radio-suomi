@@ -1,7 +1,7 @@
 {
   "name": "pi-radio-suomi",
   "version": "0.1.0",
-  "description": "Pi extension for controlling Finnish radio streams from /radio.",
+  "description": "Pi extension for controlling Finnish and Swedish radio streams from /radio.",
   "license": "MIT",
   "type": "module",
   "private": false,
@@ -10,7 +10,11 @@
     "pi-extension",
     "radio",
     "suomi",
-    "finland"
+    "finland",
+    "sweden",
+    "swedish",
+    "sveriges-radio",
+    "nordic"
   ],
   "repository": {
     "type": "git",
@@ -18,9 +22,16 @@
   },
   "files": [
     "index.ts",
+    "channels.ts",
+    "sr-channels.ts",
+    "scripts/update-sr-channels.mjs",
     "README.md",
     "LICENSE"
   ],
+  "scripts": {
+    "update:sr-channels": "node scripts/update-sr-channels.mjs --write",
+    "check:sr-channels": "node scripts/update-sr-channels.mjs --check"
+  },
   "pi": {
     "extensions": [
       "./index.ts"

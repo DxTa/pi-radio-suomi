@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
+import { CHANNELS, type Channel } from "./channels.ts";
 import { spawn, spawnSync } from "node:child_process";
 import {
   closeSync,
@@ -29,13 +30,6 @@ const LOCK_RETRY_MS = 100;
 const LOCK_STALE_MS = 10_000;
 const LOCK_FORCE_STALE_MS = 30_000;
 
-interface Channel {
-  id: string;
-  name: string;
-  description: string;
-  url: string;
-}
-
 interface RadioState {
   version: 1;
   pid: number | null;
@@ -54,89 +48,8 @@ interface LockState {
   createdAt: string;
 }
 
-const CHANNELS: Channel[] = [
-  {
-    id: "channel-rondo-classic-klasu-pro",
-    name: "Rondo Classic Klasu Pro",
-    description: "Classical music",
-    url: "http://iradio.fi:8000/klasupro-hi.mp3",
-  },
-  {
-    id: "channel-radio-sun",
-    name: "Radio Sun",
-    description: "local Finnish stuff",
-    url: "http://st.downtime.fi/sun.mp3",
-  },
-  {
-    id: "channel-finest-fm",
-    name: "Finest FM",
-    description: "contemporary, Finnish and English songs",
-    url: "http://212.47.220.188:8000/listen.mp3",
-  },
-  {
-    id: "channel-sea-fm",
-    name: "Sea FM",
-    description: "contemporary, Finnish and English songs",
-    url: "http://s3.myradiostream.com:4976/radio",
-  },
-  {
-    id: "channel-radio-helsinki",
-    name: "Radio Helsinki",
-    description: "contemporary, Finnish and English songs",
-    url: "http://stream.radiohelsinki.fi/radio",
-  },
-  {
-    id: "channel-radio-dei",
-    name: "Radio Dei",
-    description: "Christian broadcasting",
-    url: "http://isojako.radiodei.fi:8000/oulu",
-  },
-  {
-    id: "channel-radio-hear",
-    name: "Radio Hear",
-    description: "lots of old weird shit; 60s rock to Arabic songs",
-    url: "http://hear.fi:8000/hear.mp3",
-  },
-  {
-    id: "channel-roll-fm",
-    name: "Roll FM",
-    description: "old tracks (50s - 80s)",
-    url: "http://stream.rollfm.fi/",
-  },
-  {
-    id: "channel-radio-patmos",
-    name: "Radio Patmos",
-    description: "Christian broadcasting, current affairs",
-    url: "http://s3.yesstreaming.net:7011/radio",
-  },
-  {
-    id: "channel-kaaos-radio-dubstep",
-    name: "Kaaos Radio — dubstep",
-    description: "dubstep, breakbeat",
-    url: "http://stream.kaaosradio.fi:8000/stream2",
-  },
-  {
-    id: "channel-kaaos-radio-chill",
-    name: "Kaaos Radio — chill",
-    description: "lo-fi, electronic",
-    url: "http://stream.kaaosradio.fi:8000/chill",
-  },
-  {
-    id: "channel-radio-musa",
-    name: "Radio Musa",
-    description: "60s nostalgia tracks, jazz + country, English, Swedish and Finnish",
-    url: "http://n09.radiojar.com/n6yg5q0z8vzuv.m4a",
-  },
-  {
-    id: "channel-radiose",
-    name: "RadioSE",
-    description: "Classic rock, Finnish and English songs",
-    url: "http://wr2.downtime.fi/kaakko.mp3",
-  },
-];
-
 const CHANNEL_BY_ID = new Map(CHANNELS.map((channel) => [channel.id, channel]));
-const COMMAND_ALIASES = ["off", "stop", "now", "list"];
+const COMMAND_ALIASES = ["off", "stop", "now", "list", "list fi", "list se"];
 
 let activeCtx: ExtensionContext | null = null;
 let stateWatcher: FSWatcher | null = null;
@@ -553,6 +466,12 @@ function completionItem(value: string, label: string, description: string): Auto
   return { value, label, description };
 }
 
+function channelSourceLabel(channel: Channel): string {
+  if (channel.country === "SE") return "SE · Sveriges Radio";
+  if (channel.country === "FI") return "FI";
+  return "Radio";
+}
+
 function getArgumentCompletions(prefix: string): AutocompleteItem[] | null {
   const query = prefix.trim().toLowerCase();
   const aliasItems = COMMAND_ALIASES
@@ -564,14 +483,24 @@ function getArgumentCompletions(prefix: string): AutocompleteItem[] | null {
       if (!query) return true;
       return [channel.id, channel.name, channel.description].some((field) => field.toLowerCase().includes(query));
     })
-    .map((channel) => completionItem(channel.id, `${channel.id} — ${channel.name}`, channel.description));
+    .map((channel) =>
+      completionItem(channel.id, `${channel.id} — ${channel.name}`, `${channelSourceLabel(channel)} · ${channel.description}`),
+    );
 
   const items = [...aliasItems, ...channelItems];
   return items.length > 0 ? items : null;
 }
 
-function notifyChannelList(ctx: ExtensionContext): void {
-  const lines = CHANNELS.map((channel) => `${channel.id} — ${channel.name}: ${channel.description}`);
+function notifyChannelList(ctx: ExtensionContext, country?: "FI" | "SE"): void {
+  const channels = country ? CHANNELS.filter((channel) => channel.country === country) : CHANNELS;
+  if (!country) {
+    const fiCount = CHANNELS.filter((channel) => channel.country === "FI").length;
+    const seCount = CHANNELS.filter((channel) => channel.country === "SE").length;
+    ctx.ui.notify(`Radio channels: ${fiCount} Finnish, ${seCount} Swedish. Use /radio list fi or /radio list se for details.`, "info");
+    return;
+  }
+
+  const lines = channels.map((channel) => `${channel.id} — ${channel.name}: ${channel.description}`);
   ctx.ui.notify(lines.join("\n"), "info");
 }
 
@@ -615,19 +544,24 @@ function notifyNow(ctx: ExtensionContext): void {
 
 export default function radioSuomi(pi: ExtensionAPI): void {
   pi.registerCommand("radio", {
-    description: "Control Finnish radio. Usage: /radio toggles, /radio channel-radio-helsinki plays a channel.",
+    description: "Control Finnish and Swedish radio. Usage: /radio toggles, /radio channel-sr-p1 plays a channel.",
     getArgumentCompletions,
     handler: async (args: string, ctx: ExtensionContext) => {
       const raw = (args ?? "").trim();
+      const normalized = raw.toLowerCase();
       try {
         if (!raw) {
           await handleToggle(ctx);
-        } else if (raw === "off" || raw === "stop") {
+        } else if (normalized === "off" || normalized === "stop") {
           await handleStop(ctx);
-        } else if (raw === "now") {
+        } else if (normalized === "now") {
           notifyNow(ctx);
-        } else if (raw === "list") {
+        } else if (normalized === "list") {
           notifyChannelList(ctx);
+        } else if (normalized === "list fi") {
+          notifyChannelList(ctx, "FI");
+        } else if (normalized === "list se") {
+          notifyChannelList(ctx, "SE");
         } else {
           const channel = CHANNEL_BY_ID.get(raw);
           if (!channel) {
