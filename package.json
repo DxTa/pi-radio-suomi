@@ -16,6 +16,11 @@
     "type": "git",
     "url": "git+ssh://git@github.com/DxTa/pi-radio-suomi.git"
   },
+  "files": [
+    "index.ts",
+    "README.md",
+    "LICENSE"
+  ],
   "pi": {
     "extensions": [
       "./index.ts"
