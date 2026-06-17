@@ -1,0 +1,39 @@
+{
+  "name": "pi-radio-suomi",
+  "version": "0.1.0",
+  "description": "Pi extension for controlling Finnish radio streams from /radio.",
+  "license": "MIT",
+  "type": "module",
+  "private": false,
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "radio",
+    "suomi",
+    "finland"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/DxTa/pi-radio-suomi.git"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
